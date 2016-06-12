@@ -22,6 +22,7 @@
     var bubblePositionsX = new Array(12);
     var bubblePositionsY = new Array(9);
     var bubbleLineWidth = -1;
+    var allColors = initializeColors(50);
     // toggle to draw text near bubble
     var drawText = false;
     // global setting to activate debug logging
@@ -53,12 +54,16 @@
     function drawCoordinateSystem(canvasRadarBgColor) {
         var canvas = document.getElementById("radar");
         var ctx = canvas.getContext("2d");  
-        // draw fields background
+        // draw background
         ctx.fillStyle = canvasBgColor;
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
         // draw fields background
         ctx.fillStyle = canvasRadarBgColor;
         ctx.fillRect(spaceLeft, spaceTop, 4 * widthColumn, 3 * heightColumn); 
+        // draw keep and adopt bg darker
+        var canvasRadarBgColorDarker = calcColorLuminance(canvasRadarBgColor, -0.05);
+        ctx.fillStyle = canvasRadarBgColorDarker;
+        ctx.fillRect(spaceLeft + widthColumn, spaceTop, 2 * widthColumn, 3 * heightColumn); 
         // draw horizontal lines
         ctx.beginPath();
         ctx.moveTo(spaceLeft, 0 * heightColumn + spaceTop);
@@ -95,20 +100,20 @@
         // add axis description
         var txtOffset = -10; // TODO: workaround to center text in column
         ctx.beginPath();
-        ctx.font = "11px Verdana";
+        ctx.font = "bold 11px sans-serif";
         ctx.lineWidth = 0.8;
-        ctx.strokeStyle = "black";
-        ctx.strokeText("high", 5, spaceTop + heightColumn / 2);
-        ctx.strokeText("med.", 5, spaceTop + 1 * heightColumn + heightColumn / 2);
-        ctx.strokeText("low", 5, spaceTop + 2 * heightColumn + heightColumn / 2);
-        ctx.strokeText("hold", spaceLeft + widthColumn / 2 + txtOffset, 3 * heightColumn + spaceTop + spaceBottom / 2);
-        ctx.strokeText("keep", spaceLeft + 1 * widthColumn + widthColumn / 2 + txtOffset, 3 * heightColumn + spaceTop + spaceBottom / 2);
-        ctx.strokeText("adopt", spaceLeft + 2 * widthColumn + widthColumn / 2 + txtOffset, 3 * heightColumn + spaceTop + spaceBottom / 2);
-        ctx.strokeText("trial", spaceLeft + 3 * widthColumn + widthColumn / 2 + txtOffset, 3 * heightColumn + spaceTop + spaceBottom / 2);
-        ctx.font = "10px Arial";
-        ctx.strokeStyle = "dimgray";
-        ctx.strokeText("Relevance", spaceLeft + 5, spaceTop + 15); // TODO: make generic
-        ctx.strokeText("Stage (Lifecycle)", spaceLeft + 4 * widthColumn - 17 * 5, 3 * heightColumn + spaceTop - 10);
+        ctx.fillStyle = "black";
+        ctx.fillText("high", 5, spaceTop + heightColumn / 2);
+        ctx.fillText("med.", 5, spaceTop + 1 * heightColumn + heightColumn / 2);
+        ctx.fillText("low", 5, spaceTop + 2 * heightColumn + heightColumn / 2);
+        ctx.fillText("hold", spaceLeft + widthColumn / 2 + txtOffset, 3 * heightColumn + spaceTop + spaceBottom / 2);
+        ctx.fillText("keep", spaceLeft + 1 * widthColumn + widthColumn / 2 + txtOffset, 3 * heightColumn + spaceTop + spaceBottom / 2);
+        ctx.fillText("adopt", spaceLeft + 2 * widthColumn + widthColumn / 2 + txtOffset, 3 * heightColumn + spaceTop + spaceBottom / 2);
+        ctx.fillText("trial", spaceLeft + 3 * widthColumn + widthColumn / 2 + txtOffset, 3 * heightColumn + spaceTop + spaceBottom / 2);
+        //ctx.font = "bold 11px sans-serif";
+        ctx.fillStyle = "dimgray";
+        ctx.fillText("Relevance", spaceLeft + 5, spaceTop + 15); // TODO: make generic
+        ctx.fillText("Stage (Lifecycle)", spaceLeft + 4 * widthColumn - 17 * 5.5, 3 * heightColumn + spaceTop - 10);
         if (debug) { console.log("drawed coordinate system."); }
     }
     
@@ -154,9 +159,107 @@
         if (debug) { console.log("bubblePositionsY: " + bubblePositionsY); }  
     }
     
-    function calculateBubbleFillColor(idx) {
-       var fillColors = new Array("#FF0000", "#00FF00", "#FFFF00", "#0000FF", "#FF00FF", "#00FFFF", "#800000", "#008000", "#808000", "#808000", "#000080", "#800080", "#008080"); // TODO: real calculate it!
-       return fillColors[idx];
+    function getBubbleColor(idx) {
+        return allColors[idx];
+    }
+
+    function initializeColors(maxColors) {
+		var allCalculatedColors = new Array();
+		for ( var i = 0; i < maxColors; i++) {
+			var curColor = calcColor(i);
+			var trials = 1;
+			var newIdx = i + 1;
+			while ((colorAlreadyExists(allCalculatedColors, curColor) || curColor == "#ffffff" || curColor == "#000000") && trials < 10) {
+				curColor = calcColor(newIdx);
+				if (debug) { console.log("color unusable - replaced by color: " + curColor + " using index: " + newIdx + " instead of idx: " + i); }
+				newIdx++; trials++;
+			}
+			allCalculatedColors[i] = curColor;
+		}
+		//printArray(allCalculatedColors);
+		return allCalculatedColors;
+	}
+    
+    function colorAlreadyExists(colorArray, curColor) {
+        var found = false;
+        for(var i = 0; i < colorArray.length; i++) {
+           if (colorArray[i] == curColor) {
+             found = true;
+             break;
+           }
+        }
+        return found;
+     }
+    
+    function printArray(arrayToPrint) {
+    	var allElements = "";
+        for(var i = 1; i < arrayToPrint.length; i++) {
+        	allElements += "; " + arrayToPrint[i];
+        }
+        console.log(allElements);
+     }
+        
+    function calcColor(idx) {
+      var r, g, b = 0;
+      var rcalc, gcalc, bcalc = 0;
+      
+      var one = idx % 4;
+      var two = Math.floor(idx/4) % 4;
+      var three = Math.floor(idx/8 % 4);
+      
+      // switch a bit
+      var mod3 = idx % 3;
+      if (mod3 == 0) {
+        rcalc = one * 85;
+        gcalc = two * 85;
+        bcalc = three * 85;
+      }
+      if (mod3 == 2) {
+        rcalc = three * 85;
+        gcalc = two * 85;
+        bcalc = one * 85;
+      }
+      if (mod3 == 1) {
+        rcalc = two * 85;
+        gcalc = three * 85;
+        bcalc = one * 85;
+      }
+
+      if (debug) { console.log("rgb idxs[" + Math.floor(rcalc / 85) + "," + Math.floor(gcalc / 85) + "," + Math.floor(bcalc / 85) + "]"); }
+      if (debug) { console.log("rgb[" + rcalc + "," + gcalc + "," + bcalc + "]"); }
+      if (bcalc > 255) { bcalc = 255; }
+      if (gcalc > 255) { gcalc = 255; }
+      if (rcalc > 255) { rcalc = 255; }
+
+      b = bcalc.toString(16);
+      if (b.length == 1) { b = "0" + b; }
+      g = gcalc.toString(16);
+      if (g.length == 1) { g = "0" + g; }
+      r = rcalc.toString(16);
+      if (r.length == 1) { r = "0" + r; }
+      
+      var colorStr = "#" + r + "" + g + "" + b;
+      return colorStr;
+    }    
+    
+    function calcColorLuminance(hex, lum) {
+
+    	// validate hex string
+    	hex = String(hex).replace(/[^0-9a-f]/gi, '');
+    	if (hex.length < 6) {
+    		hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    	}
+    	lum = lum || 0;
+
+    	// convert to decimal and change luminosity
+    	var rgb = "#", c, i;
+    	for (i = 0; i < 3; i++) {
+    		c = parseInt(hex.substr(i*2,2), 16);
+    		c = Math.round(Math.min(Math.max(0, c + (c * lum)), 255)).toString(16);
+    		rgb += ("00"+c).substr(c.length);
+    	}
+    	if (debug) { console.log("old color: " + hex + "; new color: " + rgb); }
+    	return rgb;
     }
     
     function drawARadarBubble(radarBubble, xCoord, yCoord, idx) {  
@@ -169,19 +272,13 @@
        ctx.arc(xCoord, yCoordCalculated, radiusBubbles, 0, 2 * Math.PI);
        ctx.lineWidth = bubbleLineWidth;
        ctx.strokeStyle = bubbleLineColor;
-       //ctx.shadowBlur = bubbleShadowBlur;
-       //ctx.shadowColor = bubbleShadowColor;
+       ctx.shadowBlur = bubbleShadowBlur;
+       ctx.shadowColor = bubbleShadowColor;
        ctx.stroke();
-       //ctx.fillStyle = calculateBubbleFillColor(idx);
+       //console.log("draw a radar bubble["+radarBubble.name+"] with color: " + radarBubble.color); 
        ctx.fillStyle = radarBubble.color;
        ctx.fill();
-       /*
-       if (drawText) {
-         ctx.font = "11px Verdana";
-         ctx.lineWidth = 0.8;
-         ctx.strokeStyle = "black";
-         ctx.strokeText(radarBubble.name, xCoord, yCoord + 3 - (radarBubble.relativeAddCount * radiusBubbles)); // TODO: calculate middle of text
-       } */
+       ctx.shadowBlur = 0;
     } 
     
     function drawABubbleText(radarBubble, xCoord, yCoord) {
@@ -189,10 +286,18 @@
          var canvas = document.getElementById("radar");
          var ctx = canvas.getContext("2d"); 
          ctx.beginPath();
-         ctx.font = "11px Verdana";
+         ctx.font = "bold 11px sans-serif";
          ctx.lineWidth = 0.8;
-         ctx.strokeStyle = "black";
-         ctx.strokeText(radarBubble.name, xCoord, yCoord + 3 - (radarBubble.relativeAddCount * radiusBubbles)); // TODO: calculate middle of text
+         
+         var yCoordText = yCoord + 3 - (radarBubble.relativeAddCount * radiusBubbles);
+//         var gradient=ctx.createLinearGradient(xCoord, yCoordText, xCoord + (radarBubble.name.length * 5), yCoordText);
+//         gradient.addColorStop("0","lightgray");
+//         gradient.addColorStop("1.0","black");
+         ctx.fillStyle = "black";
+         ctx.fillText(radarBubble.name, xCoord, yCoordText); // TODO: calculate middle of text
+         ctx.strokeStyle = "white";
+         ctx.strokeText(radarBubble.name, xCoord, yCoordText);
+         ctx.shadowBlur = 0;
        }
     } 
     
@@ -203,7 +308,7 @@
        ctx.beginPath();
        ctx.moveTo(transition.xA, transition.yA);
        ctx.lineTo(transition.xB, transition.yB);
-       ctx.lineWidth = 3;
+       ctx.lineWidth = 2;
        ctx.strokeStyle = transitionColor;
        ctx.stroke();
     }  

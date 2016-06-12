@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>  
+    <title>Tec Radar</title>
+    <meta charset="utf-8"> 
+    <meta http-equiv="Pragma" content="no-cache"> 
+    <meta http-equiv="expires" content="0">  
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="./css/bootstrap.min.css">
+    <link rel="stylesheet" href="./css/jquery-ui.css">
+    <script src="./js/jquery.min.js" type="text/javascript"></script>
+    <script src="./js/jquery-ui.js"></script>
+    <script src="./js/tecradar.js" type="text/javascript"></script>
+
+<style type="text/css">
+    body { background: #EFEFEF; }
+    .navbg { background: steelblue; }
+    .content-table { margin-left: 30px; }
+    .radar-desc-box { margin-left: 33px; margin-top: 5px; margin-bottom: 5px; border: 1px solid; border-radius: 5px; background: steelblue; width: 50% }
+    .radar-desc-items { padding: 5px; color: #FFFFFF; }
+    .radar-desc-config { float: right; padding: 0px; padding-right: 5px; }
+    .add-row { margin-left: 33px; margin-top: 5px; margin-bottom: 30px; }
+    .table-header { font-weight: bold; }
+    .create-box { padding: 5px; border: 1px solid; border-radius: 5px; background: steelblue; width: 50% }
+    .load-box { padding: 5px; border: 1px solid; border-radius: 5px; background: steelblue; width: 50% }
+    .compare-box { padding: 5px; border: 1px solid; border-radius: 5px; background: steelblue; width: 50% }
+    .about-box { padding: 5px; border: 1px solid; border-radius: 5px; background: beige; width: 100%; margin-bottom: 20px; }
+    .start-box { padding: 5px; width: 60%; margin-left: auto; margin-right: auto; }
+                    
+    /* override bootstrap css */
+    /* menu items */
+    .navbar-inverse .navbar-nav > li > a:hover, .navbar-inverse .navbar-nav > li > a:focus {
+        background-color: transparent;
+        color: #FFFFFF;
+    }
+    .navbar-inverse .navbar-nav > li > a {
+        background-color: transparent;
+        color: #505050;
+    }
+    /* headline term */
+    .navbar-inverse .navbar-brand, .navbar-inverse .navbar-brand:hover {
+        color: #FFFFFF;
+        font-weight: bold;
+        background-color: transparent;
+    }
+</style>
+       
+<script type="text/javascript">
+    
+    // Objects
+    function TecRadar(id, name, categoryId) {
+       this.id = id;
+       this.name = name;
+       this.categoryId = categoryId;
+    }
+
+    // global (loaded) configs
+    var loadedCategories = new Array();
+    var curCategory; // attributes: id, name, color, desc
+    var curTecRadar; // attributes: id, name, categoryId
+    // temp store for bubble in current radar
+    var tmpBubbleStore = new Array();
+    // temp array containing auto complete names for active category
+    var itemsAutoCompl = new Array();
+    // temp array for transitions
+    var tmpTransitionStore = new Array();
+    
+    //# menu link actions
+    function createRadar() {
+      hideAllElements();
+      tmpBubbleStore = new Array();
+      var categoryId = $("#category_load").val();
+      loadCloneRadarNames(categoryId);
+      $('#name_radar').val("");
+      $('#createbox').show();
+    }
+    
+    function loadRadar() {
+      hideAllElements();
+      var categoryId = $("#category_create").val();
+      // load all radar names for current category
+      loadRadarNames(categoryId);
+      $('#loadbox').show();
+    }
+    
+    function compareRadars() {
+      hideAllElements();
+      var categoryId = $("#category_compare").val();
+      // load data for radar compare boxes
+      loadCompareRadarNames(categoryId);
+      $('#comparebox').show();
+    }
+    
+    function showAbout() {
+      hideAllElements();
+      $('#aboutbox').show();
+    }
+    
+    //# common functions
+    function hideAllElements() {
+      $('#content_template').hide(); 
+      $('#radarbox').hide();
+      $('#radardescbox').hide();
+      $('#contents').hide();
+      $('#addbox').hide();
+      $('#createbox').hide();
+      $('#loadbox').hide();
+      $('#aboutbox').hide();
+      $('#startbox').hide();
+      $('#comparebox').hide();
+    }
+    
+    function calculateRelativeAddCount(curBubble) {
+      for(var i = 0; i < tmpBubbleStore.length; i++) {
+        if (tmpBubbleStore[i] !== null && tmpBubbleStore[i] !== undefined) {
+          var bubbleInArray = tmpBubbleStore[i];
+          if (curBubble.stage == bubbleInArray.stage && curBubble.xtend == bubbleInArray.xtend
+              && curBubble.relevance == bubbleInArray.relevance && curBubble.ytend == bubbleInArray.ytend) {
+             curBubble.relativeAddCount += 1;
+             if (debug) { console.log("found another bubble["+bubbleInArray.name+"] on current bubbles["+curBubble.name+"] position - add count."); }
+          }
+        }
+      }
+    }
+    
+    function adjustRelativeAddCount(curBubble, bubbleIdx) {
+      if (debug) { console.log("try to adjust relative add count after removing a bubble["+curBubble.name+"] at index["+bubbleIdx+"] to adjust relative positions."); }
+      for(var i = bubbleIdx; i < tmpBubbleStore.length; i++) {
+        var bubbleInArray = tmpBubbleStore[i];
+        if (bubbleInArray !== null && bubbleInArray !== undefined) {
+          //if (debug) { console.log("current bubble to check: "+bubbleInArray.name); }
+          if (curBubble.stage == bubbleInArray.stage && curBubble.xtend == bubbleInArray.xtend
+              && curBubble.relevance == bubbleInArray.relevance && curBubble.ytend == bubbleInArray.ytend) {
+             bubbleInArray.relativeAddCount -= 1;
+             if (debug) { console.log("reduced relative add count of bubble["+bubbleInArray.name+"] after removed bubble["+curBubble.name+"] to adjust relative positions."); }
+          }
+        }
+      }
+    } 
+    
+    function getHttpParameter(key) {
+       var callUrl = window.location.search.substring(1);
+       var urlVars = callUrl.split('&');
+       for (var i = 0; i < urlVars.length; i++) {
+          var nameValue = urlVars[i].split('=');
+          if (nameValue[0] == key) {
+             return nameValue[1];
+          }
+       }
+    }     
+
+    //# canvas redraw events/functions
+    function updateDataRow(rowId) {
+       //alert("update Graph for rowId: " + rowId);
+       var stage = $('#stage_' + rowId).val();
+       var relevance = $('#relevance_' + rowId).val();
+       var xtend = $('#xtend_' + rowId).val();
+       var ytend = $('#ytend_' + rowId).val();
+       var name = $('#name_' + rowId).val();
+       var desc = $('#desc_' + rowId).val();
+       if (debug) { console.log("update data row (name, stage, relevance, xtend, ytend, desc): " + name + ", " + stage + ", " + relevance + ", " + xtend + ", " + ytend + ", " + desc); }
+       
+       var oldBubble = tmpBubbleStore[rowId];
+       
+       // build bubble object and store it in local tmp array
+       var curBubble = new RadarBubble(name, stage, relevance, xtend, ytend, desc, curTecRadar.id, curTecRadar.categoryId, calculateBubbleFillColor(rowId));
+       tmpBubbleStore[rowId] = null;
+       calculateRelativeAddCount(curBubble);
+       tmpBubbleStore[rowId] = curBubble;
+       
+       // ajax request to store current bubble in backend
+       if (oldBubble !== undefined && oldBubble !== null && oldBubble.id != -1) {
+          if (debug) { console.log("update old bubble with id["+oldBubble.id+"] instead of storing a new one!"); }
+          curBubble.id = oldBubble.id;
+          updateRadarElement(curBubble);
+       } else {
+          storeRadarElement(curBubble);
+       }
+       
+       // redraw coordinate system and then draw all bubbles upon
+       drawCoordinateSystem(curCategory.color);
+       drawRadarBubbles();
+       drawBubbleText();
+    }  
+    
+    function addNewEmptyRow(){
+        var newIdxId = 0;
+        // get current index
+        var firstInputOfLastContentRow = $('#contenttable').find('tr:last-child input:first');
+        if (firstInputOfLastContentRow !== undefined && firstInputOfLastContentRow !== null) {
+           var idAttr = firstInputOfLastContentRow.attr("id");
+           if (idAttr !== undefined && idAttr !== null) {
+              var idParts = idAttr.split("_");
+              newIdxId = (1*idParts[1])+1;
+              if (debug) { console.log("add new empty row at new idx: " + newIdxId); }
+           }
+        }
+        // copy new row from template and use current index + 1
+        var allTrs = $('#content_table_template').find('tr');
+        var templateTr = allTrs[0]; // there is only one
+        var $clone = $(templateTr).clone();
+        // update ids of clone row as well as reset its values
+        $clone.find('td').each(function(){
+            var elementOne = $(this).find(':first-child');
+            var id = elementOne.attr('id') || null;
+            if(id) {
+                idParts = id.split("_");
+                elementOne.attr('id', idParts[0]+"_"+newIdxId);
+            }
+        });
+        // event handler for new update button
+        var idUpdateBtnNew = "update_" + newIdxId;
+        $clone.find('#' + idUpdateBtnNew).click(function() {
+            var rowId = this.id.split("_");
+            updateDataRow(rowId[1]);
+        }).end();
+        // event handler for new remove button
+        var idRemoveBtnNew = "remove_" + newIdxId;
+        $clone.find('#' + idRemoveBtnNew).click(function() {
+            var rowId = this.id.split("_");
+            removeDataRow(rowId[1]);
+        }).end();
+        var idNameField = "name_" + newIdxId;
+        $clone.find('#' + idNameField).autocomplete({
+            source: itemsAutoCompl
+        }).end();
+        
+        $('#contenttable').append($clone);
+    }
+    
+     function addContentRow(curIdx, elName, elStage, elRelevance, elXtend, elYtend, elDesc){
+        // copy new row from template and use current index + 1
+        var allTrs = $('#content_table_template').find('tr');
+        var templateTr = allTrs[0]; // there is only one
+        var $clone = $(templateTr).clone();
+        // update ids of clone row as well as reset its values
+        $clone.find('td').each(function(){
+            var elementOne = $(this).find(':first-child');
+            var id = elementOne.attr('id') || null;
+            if(id) {
+                idParts = id.split("_");
+                elementOne.attr('id', idParts[0]+"_"+curIdx);
+            }
+        });
+        // event handler for new update button
+        var idUpdateBtnNew = "update_" + curIdx;
+        $clone.find('#' + idUpdateBtnNew).click(function() {
+            var rowId = this.id.split("_");
+            updateDataRow(rowId[1]);
+        }).end();
+        // event handler for new remove button
+        var idRemoveBtnNew = "remove_" + curIdx;
+        $clone.find('#' + idRemoveBtnNew).click(function() {
+            var rowId = this.id.split("_");
+            removeDataRow(rowId[1]);
+        }).end();
+        var idNameField = "name_" + curIdx;
+        $clone.find('#' + idNameField).autocomplete({
+            source: itemsAutoCompl
+        }).end();
+        
+        $('#contenttable').append($clone);
+        
+        // update contents
+        if (debug) { console.log("add content row(name, stage, relevance, xtend, ytend, desc): " + elName + ", " + elStage + ", " + elRelevance + ", " + elXtend + ", " + elYtend + ", " + elDesc); }
+        $('#name_' + curIdx).val(elName);
+        $('#stage_' + curIdx).val(elStage);
+        $('#relevance_' + curIdx).val(elRelevance);
+        $('#xtend_' + curIdx).val(elXtend);
+        $('#ytend_' + curIdx).val(elYtend);
+        $('#desc_' + curIdx).val(elDesc);
+    }   
+    
+    function removeDataRow(rowId) {
+       // reset bubble in temp store
+       var curBubbleToRemove = tmpBubbleStore[rowId];
+       tmpBubbleStore[rowId] = null;
+       
+       if (curBubbleToRemove.relativeAddCount != 0) {
+         adjustRelativeAddCount(curBubbleToRemove, rowId);
+       }
+       
+       var idName = "name_" + rowId;
+       $('#' + idName).parent().parent().remove();
+       if (debug) { console.log("removed row with id: " + rowId); }
+       
+       // ajax request to remove bubble in backend
+       removeRadarElement(curBubbleToRemove);
+       
+       // redraw coordinate system and then draw all remaining bubbles upon
+       drawCoordinateSystem(curCategory.color);
+       drawRadarBubbles();
+       drawBubbleText();
+    } 
+    
+    function drawRadarBubbles() {
+       if (debug) { console.log("draw all bubbles from store: " + tmpBubbleStore.length); }
+       for (var i = 0; i < tmpBubbleStore.length; i++) {
+          var curBubble = tmpBubbleStore[i];
+          if (curBubble !== undefined && curBubble !== null) {
+              var xCoord = bubblePositionsX[curBubble.idxX];
+              var yCoord = bubblePositionsY[curBubble.idxY];
+              if (debug) { console.log("try to draw bubble(xCoord, yCoord, name, idxX, idxY, stage, xtend): " + xCoord + ", " + yCoord + ", " + curBubble.name + ", " + curBubble.idxX + ", " + curBubble.idxY + ", " + curBubble.stage + ", " + curBubble.xtend); }
+              drawARadarBubble(curBubble, xCoord, yCoord, i);
+          } else {
+              if (debug) { console.log("found undefined item in tmp bubble store! at idx: " + i); }
+          } 
+       }
+    } 
+    
+    function drawBubbleText() {
+       if (debug) { console.log("draw all bubbles names: " + tmpBubbleStore.length); }
+       for (var i = 0; i < tmpBubbleStore.length; i++) {
+          var curBubble = tmpBubbleStore[i];
+          if (curBubble !== undefined && curBubble !== null) {
+              var xCoord = bubblePositionsX[curBubble.idxX];
+              var yCoord = bubblePositionsY[curBubble.idxY];
+              if (debug) { console.log("try to draw bubble text: " + curBubble.name); }
+              drawABubbleText(curBubble, xCoord, yCoord);
+          } else {
+              if (debug) { console.log("found undefined item in tmp bubble store! at idx: " + i); }
+          } 
+       }
+    } 
+    
+    function drawTransitions() {
+       if (debug) { console.log("draw all transitions from store - size: " + tmpTransitionStore.length); }
+       for (var i = 0; i < tmpTransitionStore.length; i++) {
+          var curTrans = tmpTransitionStore[i];
+          if (curTrans !== undefined && curTrans !== null) {
+              if (debug) { console.log("draw transition: xA: " + curTrans.xA + "; yA: " + curTrans.yA + "; xB: " + curTrans.xB + "; yB: " + curTrans.yB); }
+              drawATransition(curTrans);
+          } else {
+              if (debug) { console.log("found undefined item in tmp transition store! at idx: " + i); }
+          } 
+       }
+    }   
+    
+    function drawRadarPage(useCaseLoad) {     
+       // draw page
+       $('#radar_name_desc').text(curTecRadar.name);
+       $('#category_name_desc').text(curCategory.name);
+                 
+       // calculate all sizes
+       calculateCanvasSizes();
+       // set canvas size
+       $('#radar').attr({
+         width: canvasWidth,
+         height: canvasHeight
+       });
+       // draw
+       drawCoordinateSystem(curCategory.color); 
+       if (useCaseLoad) {
+         drawRadarBubbles();
+         drawBubbleText();
+       }
+        
+       // add first empty content line
+       addNewEmptyRow();
+       
+       $('#loadbox').hide(); // one is not necessary but better than if 
+       $('#createbox').hide(); // one is not necessary but better than if
+       $('#radarbox').show();
+       $('#radardescbox').show();
+       $('#contents').show(); 
+       $('#addbox').show(); 
+    } 
+    
+    function drawComparePage() {     
+       // draw page
+       $('#radar_name_desc').text(curTecRadar.name);
+       $('#category_name_desc').text(curCategory.name);
+                 
+       // draw
+       drawCoordinateSystem(curCategory.color);
+       drawTransitions();
+       drawRadarBubbles();
+       drawBubbleText();
+        
+       $('#comparebox').hide();
+       $('#radarbox').show();
+       $('#radardescbox').show();
+       $('#contents').hide(); 
+       $('#addbox').hide(); 
+    }    
+            
+    //# REST functions
+    function loadInitialData() {
+      $.get("category/getall.php", function(data, status) {
+          if (debug) { console.log("loadInitialData - status: " + status + ", data: " + data); }
+          var jsArray = jQuery.parseJSON(data);
+          var selBoxCatCreate = $("#category_create");
+          var selBoxCatLoad = $("#category_load");
+          var selBoxCatComp = $("#category_compare");      
+          for (var i = 0; i < jsArray.length; i++) {
+            loadedCategories[jsArray[i].id] = jsArray[i];
+            var curOption = "<option value=\"" + jsArray[i].id + "\">" + jsArray[i].name + "</option>";
+            selBoxCatCreate.append(curOption);
+            selBoxCatLoad.append(curOption);
+            selBoxCatComp.append(curOption);
+          }
+      });    
+    } 
+    
+    function loadRadarNames(categoryId) {
+      $.get("radar/getbycategory.php?catId=" + categoryId, function(data, status) {
+          if (debug) { console.log("loadRadarNames - status: " + status + ", data: " + data); }
+          var radarNames = jQuery.parseJSON(data);
+          if (radarNames !== null) {
+            // remove all elements from select box and add new ones
+            var selBoxRadarToLoad = $("#radar_to_load");
+            $('.loaded_radar_names').remove();
+            for (var i = 0; i < radarNames.length; i++) {
+              var curOption = "<option class=\"loaded_radar_names\" value=\"" + radarNames[i].id + "\">" + radarNames[i].name + "</option>";
+              selBoxRadarToLoad.append(curOption);
+            } 
+          }
+      }); 
+    } 
+    
+    function loadCloneRadarNames(categoryId) {
+      $.get("radar/getbycategory.php?catId=" + categoryId, function(data, status) {
+          if (debug) { console.log("loadCloneRadarNames - status: " + status + ", data: " + data); }
+          var radarNames = jQuery.parseJSON(data);
+          if (radarNames !== null) {
+            // remove all elements from select box and add new ones
+            var selBoxCloneRadar = $("#clone_elements");
+            $('.clone_radar_names').remove();
+            var curOption = "<option class=\"clone_radar_names\" value=\"-1\" selected>CREATE NEW (NO CLONE)</option>";  
+            selBoxCloneRadar.append(curOption);
+            for (var i = 0; i < radarNames.length; i++) {
+              var curOption = "<option class=\"clone_radar_names\" value=\"" + radarNames[i].id + "\">" + radarNames[i].name + "</option>";
+              selBoxCloneRadar.append(curOption);
+            } 
+          }
+      }); 
+    } 
+    
+    function loadCompareRadarNames(categoryId) {
+      $.get("radar/getbycategory.php?catId=" + categoryId, function(data, status) {
+          if (debug) { console.log("loadCompareRadarNames - status: " + status + ", data: " + data); }
+          var radarNames = jQuery.parseJSON(data);
+          // remove all elements from select box and add new ones
+          var selBoxRadarComp1 = $("#radar_to_comp_1");
+          var selBoxRadarComp2 = $("#radar_to_comp_2");
+          var selBoxRadarComp3 = $("#radar_to_comp_3");
+          $('.radar_names_compare').remove();
+          selBoxRadarComp3.append("<option class=\"radar_names_compare\" value=\"-1\">COMPARE 2 ONLY</option>");
+          if (radarNames !== null) {
+            for (var i = 0; i < radarNames.length; i++) {
+              var curOption = "<option class=\"radar_names_compare\" value=\"" + radarNames[i].id + "\">" + radarNames[i].name + "</option>";
+              selBoxRadarComp1.append(curOption);
+              selBoxRadarComp2.append(curOption);
+              selBoxRadarComp3.append(curOption);
+            } 
+          }
+      }); 
+    }  
+    
+    function storeCurrentRadar() {
+       var status = false;
+       var result;
+       var radarJson = JSON.stringify(curTecRadar);
+       if (debug) { console.log("storeCurrentRadar - json: " + radarJson); }
+       $.when( 
+         $.post("radar/create.php", radarJson, function(data, status) {
+            if (debug) { console.log("storeCurrentRadar - status: " + status + ", data: " + data); }
+            result = data;
+         })
+       ).then( function () {
+            try {
+              var loadedTecRadar = jQuery.parseJSON(result);
+              curTecRadar.id = loadedTecRadar.ID;
+              status = true;
+              if (debug) { console.log("stored radar["+curTecRadar.name+"] using id/pk: " + loadedTecRadar.ID + ", status: " + status); }
+            } catch (err) {
+              alert("Could not create radar. Name is duplicate - please choose another name!");
+            }  
+            if (status) {
+              drawRadarPage(false);
+            }   
+       });
+    } 
+    
+    function cloneRadar(idRadarToClone, newRadarName, categoryId) {
+       if (debug) { console.log("clone radar with id: " + idRadarToClone + "; new radar name: " + newRadarName + "; category id: " + categoryId); }
+       $.get("radar/clone.php?radarId=" + idRadarToClone + "&radarName=" + newRadarName, function(data, status) {
+          if (debug) { console.log("cloneRadar - status: " + status + ", data: " + data); }
+          var radarId = jQuery.parseJSON(data);
+          curTecRadar = new TecRadar(radarId.ID, newRadarName, categoryId);
+          // load elements (delegates to drawRadarpage after loading)
+          loadRadarElements(radarId.ID, curCategory.id);
+       });
+    } 
+    
+    function storeRadarElement(radarBubble) {
+       var radarElementJson = JSON.stringify(radarBubble);
+       if (debug) { console.log("storeRadarElement - json: " + radarElementJson); }   
+       $.post("radar/addelement.php", radarElementJson, function(data, status) {
+          if (debug) { console.log("storeRadarElement - status: " + status + ", data: " + data); }
+          var resultElement = jQuery.parseJSON(data);
+          radarBubble.id = resultElement.ID;
+       });
+    } 
+    
+    function updateRadarElement(radarBubble) {
+       var radarElementJson = JSON.stringify(radarBubble);
+       if (debug) { console.log("updateRadarElement - json: " + radarElementJson); }
+       $.post("radar/updateelement.php", radarElementJson, function(data, status) {
+          if (debug) { console.log("updateRadarElement - status: " + status + ", data: " + data); }
+          var resultElement = jQuery.parseJSON(data);
+          radarBubble.id = resultElement.ID;
+       });
+    }    
+
+    function removeRadarElement(radarBubble) {
+       var radarElementJson = JSON.stringify(radarBubble);
+       if (debug) { console.log("removeRadarElement - json: " + radarElementJson); }
+       $.post("radar/removeelement.php", radarElementJson, function(data, status) {
+          if (debug) { console.log("removeRadarElement - status: " + status + ", data: " + data); }
+       });
+    } 
+    
+    function loadRadarElements(radarId, categoryId) {
+       if (debug) { console.log("loadRadarElements for radar id: " + radarId + ", catid: " + categoryId); }
+       $.get("radar/getelementsbyradarid.php?radarId=" + radarId, function(data, status) {
+          if (debug) { console.log("loadRadarElements - status: " + status + ", data: " + data); }
+          var radarElements = jQuery.parseJSON(data);
+          if (radarElements !== null) {
+            var curBubble;
+            for (var i = 0; i < radarElements.length; i++) {
+               curBubble = new RadarBubble(radarElements[i].name, radarElements[i].stage, radarElements[i].relevance, radarElements[i].xtend, radarElements[i].ytend, radarElements[i].desc, radarId, categoryId, calculateBubbleFillColor(i)); 
+               curBubble.id = radarElements[i].id;
+               calculateRelativeAddCount(curBubble);
+               tmpBubbleStore[i] = curBubble;
+               // add row to content table 
+               addContentRow(i, radarElements[i].name, radarElements[i].stage, radarElements[i].relevance, radarElements[i].xtend, radarElements[i].ytend, radarElements[i].desc); 
+            }
+            if (debug) { console.log("loaded count of bubbles: " + tmpBubbleStore.length); }
+          }
+          drawRadarPage(true);
+       });
+    }  
+    
+    function loadAndCompareRadars(idRadar1, idRadar2, idRadar3, categoryId) {
+       var bubblesRadar1 = new Array();
+       var bubblesRadar2 = new Array();
+       var bubblesRadar3 = new Array();
+       var idx = 0;
+       var re1;
+       var re2;
+       var re3;
+       
+       if (debug) { console.log("compare radars: id of radar1: " + idRadar1 + ", id of radar2: " + idRadar2 + ", id of radar3: " + idRadar3); }
+       
+       $.when( 
+         $.get("radar/getelementsbyradarid.php?radarId=" + idRadar1, function(data, status) {
+            re1 = data;
+            if (debug) { console.log(data + ", status" + status); }
+         }),
+         
+         $.get("radar/getelementsbyradarid.php?radarId=" + idRadar2, function(data, status) {
+            re2 = data;
+            if (debug) { console.log(data + ", status" + status); }
+         }),
+         
+         $.get("radar/getelementsbyradarid.php?radarId=" + idRadar3, function(data, status) {
+            re3 = data;
+            if (debug) { console.log(data + ", status" + status); }
+         })
+       ).then( function() {
+          var curBubble;
+          var radarElements;
+          var idxColor = 0;
+          
+          radarElements = jQuery.parseJSON(re1);
+          if (radarElements !== null) {
+            for (var i = 0; i < radarElements.length; i++) {
+               curBubble = new RadarBubble(radarElements[i].name, radarElements[i].stage, radarElements[i].relevance, radarElements[i].xtend, radarElements[i].ytend, radarElements[i].desc, idRadar1, categoryId, calculateBubbleFillColor(idxColor++)); 
+               curBubble.id = radarElements[i].id;
+               bubblesRadar1[i] = curBubble;
+               // and add to bubble store
+               tmpBubbleStore[idx++] = curBubble;
+               calculateRelativeAddCount(curBubble);
+            }
+          }
+          
+          radarElements = jQuery.parseJSON(re2);
+          if (radarElements !== null) {
+            for (var i = 0; i < radarElements.length; i++) {
+               curBubble = new RadarBubble(radarElements[i].name, radarElements[i].stage, radarElements[i].relevance, radarElements[i].xtend, radarElements[i].ytend, radarElements[i].desc, idRadar2, categoryId, calculateBubbleFillColor(idxColor++)); 
+               curBubble.id = radarElements[i].id;
+               bubblesRadar2[i] = curBubble;
+               // and add to bubble store
+               tmpBubbleStore[idx++] = curBubble;
+               calculateRelativeAddCount(curBubble);
+            }
+          }
+          
+          if (idRadar3 != -1) {   
+            radarElements = jQuery.parseJSON(re3);
+            if (radarElements !== null) {
+              for (var i = 0; i < radarElements.length; i++) {
+                 curBubble = new RadarBubble(radarElements[i].name, radarElements[i].stage, radarElements[i].relevance, radarElements[i].xtend, radarElements[i].ytend, radarElements[i].desc, idRadar3, categoryId, calculateBubbleFillColor(idxColor++)); 
+                 curBubble.id = radarElements[i].id;
+                 bubblesRadar3[i] = curBubble;
+                 // and add to bubble store
+                 tmpBubbleStore[idx++] = curBubble;
+                 calculateRelativeAddCount(curBubble);
+              }
+            }
+         } 
+            
+         if (debug) { console.log("size of bubble store after loading all elements: " + tmpBubbleStore.length); }
+         
+         // calculate transitions
+         var curBubbleLevel1;
+         var curBubbleLevel2;
+         var curBubbleLevel3;
+         var idxTrans = 0;
+         for (var i = 0; i < bubblesRadar1.length; i++) {
+            curBubbleLevel1 = bubblesRadar1[i];
+            for (var j = 0; j < bubblesRadar2.length; j++) {
+               curBubbleLevel2 = bubblesRadar2[j];
+               if (curBubbleLevel1.name == curBubbleLevel2.name) {
+                  // mark matching bubble with same/similar color
+                  curBubbleLevel2.color = curBubbleLevel1.color; // TODO recalculate color to another aczent
+                  // build transition
+                  var xCoordA = bubblePositionsX[curBubbleLevel1.idxX];
+                  var yCoordA = bubblePositionsY[curBubbleLevel1.idxY];
+                  if (debug) { console.log("xCoordA: " + xCoordA + "; yCoordA: " + yCoordA); }
+                  if (curBubbleLevel1.relativeAddCount != 0) {
+                     yCoordA = yCoordA - (curBubbleLevel1.relativeAddCount * radiusBubbles);
+                     if (debug) { console.log("changed yCoordA to: " + yCoordA); }
+                  }
+                  var xCoordB = bubblePositionsX[curBubbleLevel2.idxX];
+                  var yCoordB = bubblePositionsY[curBubbleLevel2.idxY];
+                  if (debug) { console.log("xCoordB: " + xCoordB + "; yCoordB: " + yCoordB); }
+                  if (curBubbleLevel2.relativeAddCount != 0) {
+                     yCoordB = yCoordB - (curBubbleLevel2.relativeAddCount * radiusBubbles);
+                     if (debug) { console.log("changed yCoordB to: " + yCoordB); }
+                  }
+                  var curTrans = new Transition(xCoordA, yCoordA, xCoordB, yCoordB);
+                  tmpTransitionStore[idxTrans++] = curTrans;
+               }
+               if (idRadar3 != -1) {
+                  for (var k = 0; k < bubblesRadar3.length; k++) {
+                     curBubbleLevel3 = bubblesRadar3[k];
+                     if (curBubbleLevel2.name == curBubbleLevel3.name) {
+                        // mark matching bubble with same/similar color
+                        curBubbleLevel3.color = curBubbleLevel2.color; // TODO recalculate color to another aczent
+                        // build transition
+                        var xCoordA = bubblePositionsX[curBubbleLevel2.idxX];
+                        var yCoordA = bubblePositionsY[curBubbleLevel2.idxY];
+                        if (debug) { console.log("xCoordA: " + xCoordA + "; yCoordA: " + yCoordA); }
+                        if (curBubbleLevel2.relativeAddCount != 0) {
+                           yCoordA = yCoordA - (curBubbleLevel2.relativeAddCount * radiusBubbles);
+                           if (debug) { console.log("changed yCoordA to: " + yCoordA); }
+                        }
+                        var xCoordB = bubblePositionsX[curBubbleLevel3.idxX];
+                        var yCoordB = bubblePositionsY[curBubbleLevel3.idxY];
+                        if (debug) { console.log("xCoordB: " + xCoordB + "; yCoordB: " + yCoordB); }
+                        if (curBubbleLevel3.relativeAddCount != 0) {
+                           yCoordB = yCoordB - (curBubbleLevel3.relativeAddCount * radiusBubbles);
+                           if (debug) { console.log("changed yCoordB to: " + yCoordB); }
+                        }
+                        var curTrans = new Transition(xCoordA, yCoordA, xCoordB, yCoordB);
+                        tmpTransitionStore[idxTrans++] = curTrans;
+                     }
+                  }
+               }
+            }
+         }
+         
+         drawComparePage();
+       });
+    }
+    
+    function loadAutocompleteValues(categoryId) {
+       if (debug) { console.log("load unique element names for catId: " + categoryId); }
+       $.get("radar/getuniqueelementnamesbycategoryid.php?catId=" + categoryId, function(data, status) {
+          if (debug) { console.log("loadAutocompleteValues - status: " + status + ", data: " + data); }
+          var elementNames = jQuery.parseJSON(data);
+          itemsAutoCompl = new Array();
+          if (elementNames !== null) {
+            for (var i = 0; i < elementNames.length; i++) {
+               itemsAutoCompl[i] = elementNames[i].name;
+            }
+            if (debug) { console.log("loaded autocompletion elements - size: " + itemsAutoCompl.length); }
+          }
+      });
+    }    
+    
+$(document).ready(function(){
+    /* Hier der jQuery-Code */
+
+    // check debug mode
+    var debugVal = getHttpParameter("debug");
+    if (debugVal !== undefined && debugVal == "true") {
+       debug = true;
+    }
+    
+    // load data from server
+    loadInitialData();
+
+    // hide blocks    
+    hideAllElements();
+    
+    // show start screen    
+    $('#startbox').show();
+    
+    //### register button click handler
+    
+    //# button to create a new radar
+    $("#create").click(function() {
+       //alert($("#category_create").val());
+       curCategory = loadedCategories[$("#category_create").val()]
+       // get id of radar to clone
+       var idRadarToClone = $("#clone_elements").val();
+       //alert($("#name_radar").val() + " | " + curCategory.desc);
+       var radarName = $('#name_radar').val();
+       if (radarName.length < 4) {
+          alert("Radar name has to have a minimum length of 3 chars!");
+       } else { 
+          // reset former contents
+          tmpBubbleStore = new Array();
+          $('#contenttable tbody').children().remove();
+          
+          // load auto completion before event handler are registered
+          loadAutocompleteValues(curCategory.id);
+          
+          if (idRadarToClone == -1) {
+            // create new radar and store it at backend and delegate page drawing
+            curTecRadar = new TecRadar(-1, radarName, curCategory.id);
+            storeCurrentRadar();      
+          } else {
+            // clone old one
+            //var radarIdNew = 
+            cloneRadar(idRadarToClone, radarName, curCategory.id);
+            //curTecRadar = new TecRadar(radarIdNew, radarName, curCategory.id);
+          }
+       }
+    });  
+    
+    $("#category_load").change(function() {
+        var categoryId = $("#category_load").val();
+        // load all radar names for current category
+        loadRadarNames(categoryId);
+    });
+    
+    $("#category_create").change(function() {
+       var categoryId = $("#category_create").val();
+       // load radar names of potential clones for this category
+       loadCloneRadarNames(categoryId);
+    });
+    
+    $("#category_compare").change(function() {
+       var categoryId = $("#category_compare").val();
+       // load radar names of potential clones for this category
+       loadCompareRadarNames(categoryId);
+    });
+    
+    $('#load').click(function() { 
+       curCategory = loadedCategories[$("#category_load").val()];
+       var radarId = $('#radar_to_load').val();
+       var radarName = $('#radar_to_load option:selected').text();
+       if (debug) { console.log("load radar with id: " + radarId + ", and name: " + radarName); }
+       
+       curTecRadar = new TecRadar(radarId, radarName, curCategory.id);
+       
+       // reset former contents
+       tmpBubbleStore = new Array();
+       $('#contenttable tbody').children().remove();
+       
+       // load auto completion before event handler are registered
+       loadAutocompleteValues(curCategory.id);
+       
+       // load elements (delegates to drawRadarpage after loading)
+       loadRadarElements(radarId, curCategory.id);
+    });     
+        
+    $('#add').click(function() { 
+        addNewEmptyRow();
+    });
+    
+    $('#compare').click(function() { 
+        curCategory = loadedCategories[$("#category_compare").val()]
+        var idRadar1 = $('#radar_to_comp_1').val();
+        var idRadar2 = $('#radar_to_comp_2').val();
+        var idRadar3 = $('#radar_to_comp_3').val();
+        if (debug) { console.log("compare radars, id of radar 1: " + idRadar1 + "; id of radar 2: " + idRadar2 + "; id of radar 3: " + idRadar3); }
+        if (idRadar1 == idRadar2 || idRadar1 == idRadar3 || idRadar2 == idRadar3) {
+           alert("You can not compare a radar with itself - please chose a different one!")
+        } else {
+           // reset former contents
+           tmpBubbleStore = new Array();
+           tmpTransitionStore = new Array();
+           // calculate all sizes (already here because sizes are needed for calculations)
+           calculateCanvasSizes();
+           // set canvas size
+           $('#radar').attr({
+             width: canvasWidth,
+             height: canvasHeight
+           });
+           // build dynamic radar name
+           var radarNamePart1 = $('#radar_to_comp_1 option:selected').text() + " - ";
+           var radarNamePart2 = $('#radar_to_comp_2 option:selected').text();
+           var radarNamePart3 = idRadar3 == -1 ? "" : (" - " + $('#radar_to_comp_3 option:selected').text());
+           var radarName = "Comparison(" + radarNamePart1 + radarNamePart2 + radarNamePart3 + ")";
+           curTecRadar = new TecRadar(-1, radarName, curCategory.id);
+           // load radars and correlate bubbles (and delegate drawing of page) 
+           loadAndCompareRadars(idRadar1, idRadar2, idRadar3, curCategory.id);
+        }
+    });
+    
+    // define behavior of checkbox that turns text for bubble on/off
+    $('#toggletext').click(function() {
+       if (drawText) {
+          drawText = false;
+       } else {
+          drawText = true;
+       }
+       // redraw coordinate system and then draw all existing bubbles upon
+       drawCoordinateSystem(curCategory.color);
+       if (tmpTransitionStore !== null && tmpTransitionStore.length > 0) {
+          drawTransitions();
+       }
+       drawRadarBubbles();
+       drawBubbleText();
+    });
+     
+});
+</script>
+  </head>
+  <body>
+
+    <nav class="navbar navbar-inverse navbg">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <span class="navbar-brand">Tec Radar</span>
+        </div>
+        <div>
+          <ul class="nav navbar-nav">
+            <li><a id="createlink" href="javascript:createRadar()"><span class="glyphicon glyphicon-cloud-upload"></span> Create</a></li>
+            <li><a id="loadlink" href="javascript:loadRadar()"><span class="glyphicon glyphicon-cloud-download"></span> Load</a></li>
+            <li><a id="trendlink" href="javascript:compareRadars()"><span class="glyphicon glyphicon-stats"></span> Compare</a></li>
+          </ul>
+          <ul class="nav navbar-nav navbar-right">
+            <li><a href="javascript:showAbout()"><span class="glyphicon glyphicon-info-sign"></span> About</a></li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">  
+    
+      <div class="col-sm-12">
+ 
+          <div id="radardescbox" class="radar-desc-box">
+              <span class="radar-desc-items"><b>Name: </b><span id="radar_name_desc">TODO</span></span>
+              <span class="radar-desc-items"><b>Category: </b><span id="category_name_desc">TODO</span></span>
+              <span class="radar-desc-items radar-desc-config"><input type="checkbox" id="toggletext" value="true" />Text on/off</span>            
+          </div>
+                 
+          <div id="radarbox" class="center-block">
+              <canvas id="radar"></canvas>        
+          </div>
+          
+          <div id="contents" class="table-responsive content-table">
+            <table id="contenttable" class="table-condensed">
+              <thead>
+                <tr class="table-header">
+                  <td>Name</td>
+                  <td>Stage</td>
+                  <td>Relevance</td>
+                  <td>X-Tendency</td>
+                  <td>Y-Tendency</td>
+                  <td>Description</td>
+                  <td>&nbsp;</td>
+                  <td>&nbsp;</td>
+                </tr>
+              </thead>
+              <tbody>          
+              </tbody>
+            </table>
+          </div>
+
+          <div id="content_template">
+            <table id="content_table_template">         
+                <tr class="contentrow">
+                  <td>
+                    <input id="name_x" type="text" size="25" maxlength="35" />
+                  </td>
+                  <td>
+                    <select id="stage_x" size="1"> 
+                      <option value="9" selected>trial</option>
+                      <option value="6">adopt</option>
+                      <option value="3">keep</option>
+                      <option value="0">hold</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select id="relevance_x" size="1"> 
+                      <option value="6" selected>high</option>
+                      <option value="3">medium</option>
+                      <option value="0">low</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select id="xtend_x" size="1"> 
+                      <option value="0">left</option>
+                      <option value="1" selected>middle</option>
+                      <option value="2">right</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select id="ytend_x" size="1"> 
+                      <option value="2">high</option>
+                      <option value="1" selected>medium</option>
+                      <option value="0">low</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input id="desc_x" type="text" size="30" maxlength="80" />
+                  </td>
+                  <td>
+                    <input id="update_x" type="button" id="update" value="Save" />
+                  </td>
+                  <td>
+                    <input id="remove_x" type="button" value="Remove" />
+                  </td>            
+                </tr>
+            </table>
+          </div>
+
+      
+          <div id="addbox" class="add-row">
+            <input type="button" id="add" value="Add" />
+          </div>
+          
+          <div id="createbox" class="create-box">
+             <b>Name:</b> <img src="img/info.png" title="Choose a sustainable name e.g. ORGUNIT_CATEGORY_YYYYMM"/><br>
+             <input id="name_radar" type="text" size="25" maxlength="35" /><br>
+             <b>Category:</b><br>
+             <select id="category_create" size="1"> 
+             </select><br>
+             <b>Clone another:</b><br>
+             <select id="clone_elements" size="1"> 
+             </select><br> <br>
+             <input type="button" id="create" value="Create" />
+          </div>
+          
+          <div id="loadbox" class="load-box">
+             <select id="category_load" size="1"> 
+             </select><br> <br>
+             <select id="radar_to_load" size="1"> 
+             </select><br> <br>
+             <input type="button" id="load" value="Load" />
+          </div>  
+          
+          <div id="comparebox" class="compare-box">
+             <b>Category:</b><br>
+             <select id="category_compare" size="1"> 
+             </select><br> <br>
+             <b>Current Radar:</b><br>
+             <select id="radar_to_comp_1" size="1"> 
+             </select><br> <br>
+             <b>Older Radar to compare:</b><br>
+             <select id="radar_to_comp_2" size="1"> 
+             </select><br> <br>
+             <b>Oldest Radar to compare:</b><br>
+             <select id="radar_to_comp_3" size="1"> 
+             </select><br> <br>
+             <input type="button" id="compare" value="Compare" />
+          </div>   
+          
+          <div id="startbox" class="start-box">
+             <p>Welcome to the TecRadar application.<br>
+             For more details about usage please consult the <a href="javascript:showAbout()">about page</a>. 
+             </p>
+             <img src="img/radar_demo.png">
+          </div>
+          
+          <div id="aboutbox" class="about-box">
+             <h3>TecRadar Guide</h3>
+             <p>This TecRadar was intended to categorize several elements like 
+             a certain technology in matters of its lifecycle and its relevance.
+             The main goal was to have a visualized basis for discussions to talk about questions like:</p>
+             <ul>
+               <li>What's coming up on the horizon? And why is it interesting?</li>
+               <li>What is the current pervasiveness of a technology? Or with which potential does it ship?</li>
+               <li>What are the things we want to get rid of and why?</li>
+               <li>What has been evaluated and assessed as useful?</li>
+             </ul>
+             Our TecRadar has two elementary axis:
+             <ul>
+               <li><b>Lifecycle (x-axis)</b>: defines in which stage the current element is.
+                 <ul>
+                   <li><b>trial</b>: You see it on the horizon.</li>
+                   <li><b>adopt</b>: You already experimented with it and assessed it as practical.</li>
+                   <li><b>keep</b>: This is in use and can be used without doubts.</li>
+                   <li><b>hold</b>: Deprecated, should be avoided or replaced when possible.</li>
+                 </ul>
+               </li>
+               <li><b>Relevance (y-axis</b>: defines depending on the stage the particula relevance.
+                 <ul>
+                   <li><b>high</b>: Highly relevant.</li>
+                   <li><b>medium</b>: Medium relevant.</li>
+                   <li><b>low</b>: Low relevant.</li>
+                 </ul>
+               </li>
+             </ul>
+             <p><b>Example</b>: Imagine your typical business is somehow related with interpretation of data and you have 
+             a big datawarehouse in usage. This lifecycle of this technology is <b>keep</b> and because of its 
+             high pervasion its relevance is <b>high</b>. Then you discover a map reduce framework e.g. hadoop.
+             Lifecycle is <b>trial</b> because you just evaluate it. The relevance is <b>high</b> because if you
+             can use it it will maybe revolutionize your whole system landscape by replacing the current one totally.</p>
+             <br>
+             <h4>Categories</h4>
+             <p>In the TecRadar you can place whatever you want. But too many elements or bubbles in the chart lead to a 
+             confusing picture. This is why we introduced three categories:
+             <ul>
+               <li><b>Languages &amp; Frameworks</b></li>
+               <li><b>Platforms &amp; Tools</b></li>
+               <li><b>Techniques &amp; Methodologies</b></li>
+             </ul>
+             A brief overview about these categories:<br>
+             <div class="table-responsive content-table">
+               <table class="table-condensed">
+                 <thead>
+                   <tr>
+                     <td width="10%"><b>Category</b></td>
+                     <td width="50%"><b>Explanation</b></td>
+                     <td width="40%"><b>Examples</b></td>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   <tr>
+                     <td><b>Languages &amp; Frameworks</b></td>
+                     <td>A language is often the basis a developer needs to develop. This also includes script or markup languages as well as notations.<br>Frameworks typically extend languages for functionalities that are not part of the language itself.</td>
+                     <td>Java, C#, PHP, Python, Perl, Javascript, Html, BPMN, etc.<br>JEE, Spring, log4j, jQuery, Qooxdoo, Bootstrap, etc.</td>
+                   </tr>
+                   <tr>
+                     <td><b>Platforms &amp; Tools</b></td>
+                     <td>A platform is typically a kind of base infrastructure you build your applications on top and/or install it upon (definition includes container).<br>Tools are often part of the platform as part of the ecosystem and are defined as a helpful things you additionally use to ease or to homegenize something.</td>
+                     <td>JBoss, Tomcat, Equinox, Hadoop, etc.<br>Maven, Ant, etc.</td>
+                   </tr>
+                   <tr>
+                     <td><b>Techniques &amp; Methodologies</b></td>
+                     <td>A techniques is an approach, a concept or procedure that is applied to software development and influences the structure of implementation or the implementation of software itself.<br>Methodologies are methods or procedure models that are applied to structure the way of implementation (overlaps to techniques are possible).</td>
+                     <td>TDD, MDA, REST, etc.<br>Waterfall, Scrum, Kanban, etc.</td>
+                   </tr>
+                 </tbody>
+                </table> 
+             </div>
+             <b>Note:</b> It is often not that important to have matched always the right category e.g. if one has its own definition where to place. 
+             Normally this will adjust after discussions with others to a common sense how to use it. Or you can install your own TecRadar and define own categories (for installation see below).
+             <br><br>
+             <b>Note 2:</b> The right level of abstraction depends on you. So you can use it with less important elements or
+             microversions of technologies but also without versions and respecting important elements with a minimum level of pervasion only.
+             </p>
+             <br>
+             <h4>Comparison over time</h4>
+             <p>Sometimes it can be also interesting to look back instead of only looking ahead. If this radar is filled 
+             out continuously you can <b>visualize the changes of a radar using up to three saved states</b>.
+             </p>
+             <br>
+             <h4>Licence</h4>
+             You can adapt and install your own TecRadar application if you like. It is available 
+             at <b>GitHub</b> under Apache Licence Version 2.0:<br><br>
+             <code>Copyright 2015 Matthias Wittum<br><br>
+             Licensed under the Apache License, Version 2.0 (the "License");
+             you may not use this file except in compliance with the License.<br>
+             You may obtain a copy of the License at<br><br>
+             http://www.apache.org/licenses/LICENSE-2.0<br><br>
+             Unless required by applicable law or agreed to in writing, software
+             distributed under the License is distributed on an "AS IS" BASIS,
+             WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+             See the License for the specific language governing permissions and
+             limitations under the License.
+             </code>
+             <br>
+             <br>
+             <h4>1&amp;1 Source Center</h4>
+             <p>The idea of this TecRadar was born while talking about frameworks and tools we are using in our company. 
+             Matthias initiated this discussion and the result after a few discussions was the concept for this tool.<br><br>
+             As Head of the 1&amp;1 Source Center he is normally in charge of<br>
+             <code>&quot;Finding the right persons (developers) and placing them into a position that fits best to their skills and themselves.&quot;</code>
+             </p>
+             <a href="https://jobs.1und1.de/joboffer/3908/java-softwareengineer-mw-11-source-center/?jobsearch=1#page-content">
+                <img src="img/source_center_logo.png" alt="SourceCenter" />
+            </a>
+          </div>      
+
+      <!--    
+      <br>    
+          <div id="console_box">
+            <textarea id="consolebox" cols="50" rows="10"></textarea>
+          </div>
+      -->    
+      
+      </div> 
+    </div>   
+  </body>
+</html>

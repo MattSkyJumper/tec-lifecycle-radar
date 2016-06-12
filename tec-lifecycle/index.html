@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>  
-    <title>Tec Radar</title>
+    <title>Tec Lifecycle Radar</title>
     <meta charset="utf-8"> 
     <meta http-equiv="Pragma" content="no-cache"> 
     <meta http-equiv="expires" content="0">  
@@ -16,9 +16,11 @@
     body { background: #EFEFEF; }
     .navbg { background: steelblue; }
     .content-table { margin-left: 30px; }
-    .radar-desc-box { margin-left: 33px; margin-top: 5px; margin-bottom: 5px; border: 1px solid; border-radius: 5px; background: steelblue; width: 50% }
+    .radar-desc-box { display: -moz-box; margin-left: 33px; margin-right: 33px; margin-top: 5px; margin-bottom: 5px; border: 1px solid; border-radius: 5px; background: steelblue; }
     .radar-desc-items { padding: 5px; color: #FFFFFF; }
-    .radar-desc-config { float: right; padding: 0px; padding-right: 5px; }
+    .radar-desc-config { padding: 0px; padding-right: 5px; padding-left: 20px; }
+    .radar-desc-delete { padding: 0px; padding-right: 5px; padding-left: 20px; }
+    #radar_delete { color:white; cursor:pointer; }
     .add-row { margin-left: 33px; margin-top: 5px; margin-bottom: 30px; }
     .table-header { font-weight: bold; }
     .create-box { padding: 5px; border: 1px solid; border-radius: 5px; background: steelblue; width: 50% }
@@ -66,28 +68,34 @@
     var tmpTransitionStore = new Array();
     
     //# menu link actions
+    function showStartScreen() {
+        hideAllElements();
+        $('#startbox').show();
+    }
+    
     function createRadar() {
       hideAllElements();
       tmpBubbleStore = new Array();
-      var categoryId = $("#category_load").val();
-      loadCloneRadarNames(categoryId);
+      var selBoxCatLoad = $("#category_create");
+      // load all category elements and afterwards all radar names of the (by default) preselected category
+      loadCategoryElements(selBoxCatLoad, loadCloneRadarNames);
       $('#name_radar').val("");
       $('#createbox').show();
     }
     
     function loadRadar() {
       hideAllElements();
-      var categoryId = $("#category_create").val();
-      // load all radar names for current category
-      loadRadarNames(categoryId);
+      var selBoxCatLoad = $("#category_load");
+      // load all category elements and afterwards all radar names of the (by default) preselected category
+      loadCategoryElements(selBoxCatLoad, loadRadarNames);
       $('#loadbox').show();
     }
     
     function compareRadars() {
       hideAllElements();
-      var categoryId = $("#category_compare").val();
-      // load data for radar compare boxes
-      loadCompareRadarNames(categoryId);
+      var selBoxCatCompare = $("#category_compare");
+      // load all category elements and afterwards all radar names of the (by default) preselected category
+      loadCategoryElements(selBoxCatCompare, loadCompareRadarNames);
       $('#comparebox').show();
     }
     
@@ -96,7 +104,7 @@
       $('#aboutbox').show();
     }
     
-    //# common functions
+    //# common functions    
     function hideAllElements() {
       $('#content_template').hide(); 
       $('#radarbox').hide();
@@ -109,18 +117,74 @@
       $('#startbox').hide();
       $('#comparebox').hide();
     }
-    
+
     function calculateRelativeAddCount(curBubble) {
-      for(var i = 0; i < tmpBubbleStore.length; i++) {
-        if (tmpBubbleStore[i] !== null && tmpBubbleStore[i] !== undefined) {
-          var bubbleInArray = tmpBubbleStore[i];
-          if (curBubble.stage == bubbleInArray.stage && curBubble.xtend == bubbleInArray.xtend
-              && curBubble.relevance == bubbleInArray.relevance && curBubble.ytend == bubbleInArray.ytend) {
-             curBubble.relativeAddCount += 1;
-             if (debug) { console.log("found another bubble["+bubbleInArray.name+"] on current bubbles["+curBubble.name+"] position - add count."); }
+        for(var i = 0; i < tmpBubbleStore.length; i++) {
+          if (tmpBubbleStore[i] !== null && tmpBubbleStore[i] !== undefined) {
+            var bubbleInArray = tmpBubbleStore[i];
+            if (curBubble.stage == bubbleInArray.stage && curBubble.xtend == bubbleInArray.xtend
+                && curBubble.relevance == bubbleInArray.relevance && curBubble.ytend == bubbleInArray.ytend) {
+               curBubble.relativeAddCount += 1;
+               if (debug) { console.log("found another bubble["+bubbleInArray.name+"] on current bubbles["+curBubble.name+"] position - add count."); }
+            }
           }
         }
-      }
+    }
+    
+    function putBubbleToTmpBubbleStore(curBubble) {
+        for(var i = 0; i < tmpBubbleStore.length; i++) {
+          if (tmpBubbleStore[i] !== null && tmpBubbleStore[i] !== undefined) {
+            var bubbleInArray = tmpBubbleStore[i];
+            if (curBubble.stage == bubbleInArray.stage && curBubble.xtend == bubbleInArray.xtend
+                && curBubble.relevance == bubbleInArray.relevance && curBubble.ytend == bubbleInArray.ytend) {
+               // check if it is the same bubble - don't add the same multiple times
+               if (curBubble.name == bubbleInArray.name) {
+            	   if (debug) { console.log("found the same bubble["+curBubble.name+"] in tmp store - skip it!"); }
+            	   return; // return hard to avoid putting it to tmp store
+               } else { 
+            	   // add a relative count to current bubble for each match on this position
+            	   curBubble.relativeAddCount += 1;
+               }
+               if (debug) { console.log("found another bubble["+bubbleInArray.name+"] on current bubbles["+curBubble.name+"] position - add count."); }
+            }
+          }
+        }
+        tmpBubbleStore[tmpBubbleStore.length] = curBubble;
+    } 
+    
+    function recolorSameElementsInTmpBubbleStore() {
+    	for(var i = 0; i < tmpBubbleStore.length; i++) {
+    		if (tmpBubbleStore[i] !== null && tmpBubbleStore[i] !== undefined) {
+    			var mainBubbleInArray = tmpBubbleStore[i];
+    			if (debug) { console.log("main bubble [name=" + mainBubbleInArray.name + ";id=" + mainBubbleInArray.id + ";color=" + mainBubbleInArray.color + "]"); }
+	    		for(var j = i+1; j < tmpBubbleStore.length ; j++) {
+	    			if (j < tmpBubbleStore.length && tmpBubbleStore[j] !== null && tmpBubbleStore[j] !== undefined) {
+		    			var luminance = 0.8;
+		    			var compareBubbleInArray = tmpBubbleStore[j];
+		    			if (mainBubbleInArray.name == compareBubbleInArray.name) {
+		    				if (debug) { console.log("found bubble with same name[name=: " + compareBubbleInArray.name + ";id=" + compareBubbleInArray.id + ";color=" + compareBubbleInArray.color +"] - make it lighter!"); }
+					        // make matching bubble a bit lighter
+					        compareBubbleInArray.color = calcColorLuminance(compareBubbleInArray.color, luminance);
+					        //console.log("Color after: " + compareBubbleInArray.color);
+					        //compareBubbleInArray.color = "#ffff00";
+					        break; // found once is enough. If there are more it will be found later.
+		    			}
+	    			}
+	    		}
+    		}
+    	}
+    	//printTmBubbleStore();
+    }
+    
+    function printTmBubbleStore() {
+        console.log("### print all bubbles in store ###");
+        for(var i = 0; i <= tmpBubbleStore.length ; i++) {
+            if (tmpBubbleStore[i] !== null && tmpBubbleStore[i] !== undefined) {
+                var mainBubbleInArray = tmpBubbleStore[i];
+                console.log("bubble [name=" + mainBubbleInArray.name + ";id=" + mainBubbleInArray.id + ";color=" + mainBubbleInArray.color + "]");
+            }
+        }
+        console.log("### print all bubbles in store - done ###");
     }
     
     function adjustRelativeAddCount(curBubble, bubbleIdx) {
@@ -163,7 +227,7 @@
        var oldBubble = tmpBubbleStore[rowId];
        
        // build bubble object and store it in local tmp array
-       var curBubble = new RadarBubble(name, stage, relevance, xtend, ytend, desc, curTecRadar.id, curTecRadar.categoryId, calculateBubbleFillColor(rowId));
+       var curBubble = new RadarBubble(name, stage, relevance, xtend, ytend, desc, curTecRadar.id, curTecRadar.categoryId, getBubbleColor(rowId));
        tmpBubbleStore[rowId] = null;
        calculateRelativeAddCount(curBubble);
        tmpBubbleStore[rowId] = curBubble;
@@ -300,7 +364,7 @@
           if (curBubble !== undefined && curBubble !== null) {
               var xCoord = bubblePositionsX[curBubble.idxX];
               var yCoord = bubblePositionsY[curBubble.idxY];
-              if (debug) { console.log("try to draw bubble(xCoord, yCoord, name, idxX, idxY, stage, xtend): " + xCoord + ", " + yCoord + ", " + curBubble.name + ", " + curBubble.idxX + ", " + curBubble.idxY + ", " + curBubble.stage + ", " + curBubble.xtend); }
+              if (debug) { console.log("try to draw bubble(xCoord, yCoord, name, idxX, idxY, stage, xtend, color): " + xCoord + ", " + yCoord + ", " + curBubble.name + ", " + curBubble.idxX + ", " + curBubble.idxY + ", " + curBubble.stage + ", " + curBubble.xtend + ", " + curBubble.color); }
               drawARadarBubble(curBubble, xCoord, yCoord, i);
           } else {
               if (debug) { console.log("found undefined item in tmp bubble store! at idx: " + i); }
@@ -384,22 +448,24 @@
        $('#addbox').hide(); 
     }    
             
-    //# REST functions
-    function loadInitialData() {
-      $.get("category/getall.php", function(data, status) {
-          if (debug) { console.log("loadInitialData - status: " + status + ", data: " + data); }
-          var jsArray = jQuery.parseJSON(data);
-          var selBoxCatCreate = $("#category_create");
-          var selBoxCatLoad = $("#category_load");
-          var selBoxCatComp = $("#category_compare");      
-          for (var i = 0; i < jsArray.length; i++) {
-            loadedCategories[jsArray[i].id] = jsArray[i];
-            var curOption = "<option value=\"" + jsArray[i].id + "\">" + jsArray[i].name + "</option>";
-            selBoxCatCreate.append(curOption);
-            selBoxCatLoad.append(curOption);
-            selBoxCatComp.append(curOption);
-          }
-      });    
+    //# REST functions    
+    function loadCategoryElements(targetSelectBox, nextFunctionToCall) {
+        $.get("category/getall.php", function(categories, status) {
+             if (debug) { console.log("loadCategoryElements - status: " + status + ", categories: " + categories); }
+			var categoryArray = jQuery.parseJSON(categories);   
+			// reset select box
+			targetSelectBox.empty();
+			// and (re-)fill it
+			for (var i = 0; i < categoryArray.length; i++) {
+			  loadedCategories[categoryArray[i].id] = categoryArray[i];
+			  var closingBracket = (i == 0 ? "selected>" : ">");
+			  var curOption = "<option value=\"" + categoryArray[i].id + "\"" + closingBracket + categoryArray[i].name + "</option>";
+			  targetSelectBox.append(curOption);
+			}
+			if (debug) { console.log("val of cur select box: " + targetSelectBox.val()); }
+			// call next data load function with the id of the current preselected category
+			nextFunctionToCall(categoryArray[0].id);
+        });  
     } 
     
     function loadRadarNames(categoryId) {
@@ -529,7 +595,7 @@
           if (radarElements !== null) {
             var curBubble;
             for (var i = 0; i < radarElements.length; i++) {
-               curBubble = new RadarBubble(radarElements[i].name, radarElements[i].stage, radarElements[i].relevance, radarElements[i].xtend, radarElements[i].ytend, radarElements[i].desc, radarId, categoryId, calculateBubbleFillColor(i)); 
+               curBubble = new RadarBubble(radarElements[i].name, radarElements[i].stage, radarElements[i].relevance, radarElements[i].xtend, radarElements[i].ytend, radarElements[i].desc, radarId, categoryId, getBubbleColor(i)); 
                curBubble.id = radarElements[i].id;
                calculateRelativeAddCount(curBubble);
                tmpBubbleStore[i] = curBubble;
@@ -553,6 +619,7 @@
        
        if (debug) { console.log("compare radars: id of radar1: " + idRadar1 + ", id of radar2: " + idRadar2 + ", id of radar3: " + idRadar3); }
        
+       // load all radar instance datas
        $.when( 
          $.get("radar/getelementsbyradarid.php?radarId=" + idRadar1, function(data, status) {
             re1 = data;
@@ -569,47 +636,18 @@
             if (debug) { console.log(data + ", status" + status); }
          })
        ).then( function() {
-          var curBubble;
           var radarElements;
           var idxColor = 0;
           
+          // build bubbles for each elementof all radars and put it to the tmp store (for drawing later)
           radarElements = jQuery.parseJSON(re1);
-          if (radarElements !== null) {
-            for (var i = 0; i < radarElements.length; i++) {
-               curBubble = new RadarBubble(radarElements[i].name, radarElements[i].stage, radarElements[i].relevance, radarElements[i].xtend, radarElements[i].ytend, radarElements[i].desc, idRadar1, categoryId, calculateBubbleFillColor(idxColor++)); 
-               curBubble.id = radarElements[i].id;
-               bubblesRadar1[i] = curBubble;
-               // and add to bubble store
-               tmpBubbleStore[idx++] = curBubble;
-               calculateRelativeAddCount(curBubble);
-            }
-          }
-          
+          buildBubblesForComparison(radarElements, idRadar1, categoryId, bubblesRadar1, idxColor);
           radarElements = jQuery.parseJSON(re2);
-          if (radarElements !== null) {
-            for (var i = 0; i < radarElements.length; i++) {
-               curBubble = new RadarBubble(radarElements[i].name, radarElements[i].stage, radarElements[i].relevance, radarElements[i].xtend, radarElements[i].ytend, radarElements[i].desc, idRadar2, categoryId, calculateBubbleFillColor(idxColor++)); 
-               curBubble.id = radarElements[i].id;
-               bubblesRadar2[i] = curBubble;
-               // and add to bubble store
-               tmpBubbleStore[idx++] = curBubble;
-               calculateRelativeAddCount(curBubble);
-            }
-          }
-          
+          buildBubblesForComparison(radarElements, idRadar2, categoryId, bubblesRadar2, idxColor);
           if (idRadar3 != -1) {   
-            radarElements = jQuery.parseJSON(re3);
-            if (radarElements !== null) {
-              for (var i = 0; i < radarElements.length; i++) {
-                 curBubble = new RadarBubble(radarElements[i].name, radarElements[i].stage, radarElements[i].relevance, radarElements[i].xtend, radarElements[i].ytend, radarElements[i].desc, idRadar3, categoryId, calculateBubbleFillColor(idxColor++)); 
-                 curBubble.id = radarElements[i].id;
-                 bubblesRadar3[i] = curBubble;
-                 // and add to bubble store
-                 tmpBubbleStore[idx++] = curBubble;
-                 calculateRelativeAddCount(curBubble);
-              }
-            }
-         } 
+              radarElements = jQuery.parseJSON(re3);
+              buildBubblesForComparison(radarElements, idRadar3, categoryId, bubblesRadar3, idxColor);
+          }
             
          if (debug) { console.log("size of bubble store after loading all elements: " + tmpBubbleStore.length); }
          
@@ -671,9 +709,22 @@
                }
             }
          }
-         
+         recolorSameElementsInTmpBubbleStore();
+         //printTmBubbleStore();
          drawComparePage();
        });
+    }
+    
+    function buildBubblesForComparison(radarElements, idRadar, categoryId, bubblesArrayRadar, idxColor) {
+        if (radarElements !== null) {
+            for (var i = 0; i < radarElements.length; i++) {
+               curBubble = new RadarBubble(radarElements[i].name, radarElements[i].stage, radarElements[i].relevance, radarElements[i].xtend, radarElements[i].ytend, radarElements[i].desc, idRadar, categoryId, getBubbleColor(idxColor++)); 
+               curBubble.id = radarElements[i].id;
+               bubblesArrayRadar[i] = curBubble;
+               // at least add to bubble tmp store for later drawing
+               putBubbleToTmpBubbleStore(curBubble);
+            }
+          }    	
     }
     
     function loadAutocompleteValues(categoryId) {
@@ -689,25 +740,24 @@
             if (debug) { console.log("loaded autocompletion elements - size: " + itemsAutoCompl.length); }
           }
       });
-    }    
+    } 
     
-$(document).ready(function(){
-    /* Hier der jQuery-Code */
+    function markRadarAsDeleted(radarId) {
+        if (debug) { console.log("mark radar as deleted - id: " + radarId); }
+        $.post("radar/markasdeleted.php", { radar_id: radarId }, function(data, status) {
+           if (debug) { console.log("markRadarAsDeleted - status: " + status); }
+           console.log("markRadarAsDeleted - status: " + status);
+       });
+     } 
+    
+$(document).ready(function() {
 
     // check debug mode
     var debugVal = getHttpParameter("debug");
     if (debugVal !== undefined && debugVal == "true") {
        debug = true;
+       console.log("debug mode: ON");
     }
-    
-    // load data from server
-    loadInitialData();
-
-    // hide blocks    
-    hideAllElements();
-    
-    // show start screen    
-    $('#startbox').show();
     
     //### register button click handler
     
@@ -735,9 +785,7 @@ $(document).ready(function(){
             storeCurrentRadar();      
           } else {
             // clone old one
-            //var radarIdNew = 
             cloneRadar(idRadarToClone, radarName, curCategory.id);
-            //curTecRadar = new TecRadar(radarIdNew, radarName, curCategory.id);
           }
        }
     });  
@@ -759,6 +807,16 @@ $(document).ready(function(){
        // load radar names of potential clones for this category
        loadCompareRadarNames(categoryId);
     });
+    
+    $("#radar_delete").click(function() {
+    	var deleteReally = confirm("Do you really want to delete this radar?");
+    	if (deleteReally == true) {
+    	    markRadarAsDeleted(curTecRadar.id);
+    	    console.log("marked radar with id["+curTecRadar.id+"] as deleted. Redirect to load page.");
+    	    loadRadar();
+    	}
+    });
+    
     
     $('#load').click(function() { 
        curCategory = loadedCategories[$("#category_load").val()];
@@ -828,7 +886,28 @@ $(document).ready(function(){
        drawRadarBubbles();
        drawBubbleText();
     });
-     
+
+    var createVal = getHttpParameter("create");
+    if (createVal !== undefined && createVal == "true") {
+        createRadar();
+    }
+    var loadVal = getHttpParameter("load");
+    if (loadVal !== undefined && loadVal == "true") {
+        loadRadar();
+    }
+    var compareVal = getHttpParameter("compare");
+    if (compareVal !== undefined && compareVal == "true") {
+    	compareRadars();
+    }
+    var aboutVal = getHttpParameter("about");
+    if (aboutVal !== undefined && aboutVal == "true") {
+        showAbout();
+    }
+    
+    if (createVal === undefined && loadVal === undefined && compareVal === undefined && aboutVal === undefined) {
+    	showStartScreen();
+    }
+         
 });
 </script>
   </head>
@@ -841,12 +920,12 @@ $(document).ready(function(){
         </div>
         <div>
           <ul class="nav navbar-nav">
-            <li><a id="createlink" href="javascript:createRadar()"><span class="glyphicon glyphicon-cloud-upload"></span> Create</a></li>
-            <li><a id="loadlink" href="javascript:loadRadar()"><span class="glyphicon glyphicon-cloud-download"></span> Load</a></li>
-            <li><a id="trendlink" href="javascript:compareRadars()"><span class="glyphicon glyphicon-stats"></span> Compare</a></li>
+            <li><a id="createlink" href="?create=true"><span class="glyphicon glyphicon-cloud-upload"></span> Create</a></li>
+            <li><a id="loadlink" href="?load=true"><span class="glyphicon glyphicon-cloud-download"></span> Load</a></li>
+            <li><a id="trendlink" href="?compare=true"><span class="glyphicon glyphicon-stats"></span> Compare</a></li>
           </ul>
           <ul class="nav navbar-nav navbar-right">
-            <li><a href="javascript:showAbout()"><span class="glyphicon glyphicon-info-sign"></span> About</a></li>
+            <li><a id="aboutlink" href="?about=true"><span class="glyphicon glyphicon-info-sign"></span> About</a></li>
           </ul>
         </div>
       </div>
@@ -859,7 +938,8 @@ $(document).ready(function(){
           <div id="radardescbox" class="radar-desc-box">
               <span class="radar-desc-items"><b>Name: </b><span id="radar_name_desc">TODO</span></span>
               <span class="radar-desc-items"><b>Category: </b><span id="category_name_desc">TODO</span></span>
-              <span class="radar-desc-items radar-desc-config"><input type="checkbox" id="toggletext" value="true" />Text on/off</span>            
+              <span class="radar-desc-items radar-desc-config"><input type="checkbox" id="toggletext" value="true" />Text on/off</span>   
+              <span class="radar-desc-items radar-desc-delete"><span id="radar_delete" class="glyphicon glyphicon-trash"></span> Delete</span>         
           </div>
                  
           <div id="radarbox" class="center-block">
@@ -1058,7 +1138,6 @@ $(document).ready(function(){
              <br><br>
              <b>Note 2:</b> The right level of abstraction depends on you. So you can use it with less important elements or
              microversions of technologies but also without versions and respecting important elements with a minimum level of pervasion only.
-             </p>
              <br>
              <h4>Comparison over time</h4>
              <p>Sometimes it can be also interesting to look back instead of only looking ahead. If this radar is filled 
@@ -1091,14 +1170,6 @@ $(document).ready(function(){
                 <img src="img/source_center_logo.png" alt="SourceCenter" />
             </a>
           </div>      
-
-      <!--    
-      <br>    
-          <div id="console_box">
-            <textarea id="consolebox" cols="50" rows="10"></textarea>
-          </div>
-      -->    
-      
       </div> 
     </div>   
   </body>
