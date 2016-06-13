@@ -137,7 +137,7 @@
             var bubbleInArray = tmpBubbleStore[i];
             if (curBubble.stage == bubbleInArray.stage && curBubble.xtend == bubbleInArray.xtend
                 && curBubble.relevance == bubbleInArray.relevance && curBubble.ytend == bubbleInArray.ytend) {
-               // check if it is the same bubble - don't add the same multiple times
+               // check if it is the same bubble - don't add the same bubble at same place multiple times
                if (curBubble.name == bubbleInArray.name) {
             	   if (debug) { console.log("found the same bubble["+curBubble.name+"] in tmp store - skip it!"); }
             	   return; // return hard to avoid putting it to tmp store
@@ -152,7 +152,7 @@
         tmpBubbleStore[tmpBubbleStore.length] = curBubble;
     } 
     
-    function recolorSameElementsInTmpBubbleStore() {
+    function reconfigureSameElementsInTmpBubbleStore() {
     	for(var i = 0; i < tmpBubbleStore.length; i++) {
     		if (tmpBubbleStore[i] !== null && tmpBubbleStore[i] !== undefined) {
     			var mainBubbleInArray = tmpBubbleStore[i];
@@ -164,7 +164,8 @@
 		    			if (mainBubbleInArray.name == compareBubbleInArray.name) {
 		    				if (debug) { console.log("found bubble with same name[name=: " + compareBubbleInArray.name + ";id=" + compareBubbleInArray.id + ";color=" + compareBubbleInArray.color +"] - make it lighter!"); }
 					        // make matching bubble a bit lighter
-					        compareBubbleInArray.color = calcColorLuminance(compareBubbleInArray.color, luminance);
+					        //compareBubbleInArray.color = calcColorLuminance(compareBubbleInArray.color, luminance);
+					        compareBubbleInArray.showText = false;
 					        //console.log("Color after: " + compareBubbleInArray.color);
 					        //compareBubbleInArray.color = "#ffff00";
 					        break; // found once is enough. If there are more it will be found later.
@@ -657,62 +658,49 @@
          var curBubbleLevel3;
          var idxTrans = 0;
          for (var i = 0; i < bubblesRadar1.length; i++) {
-            curBubbleLevel1 = bubblesRadar1[i];
-            for (var j = 0; j < bubblesRadar2.length; j++) {
-               curBubbleLevel2 = bubblesRadar2[j];
-               if (curBubbleLevel1.name == curBubbleLevel2.name) {
-                  // mark matching bubble with same/similar color
-                  curBubbleLevel2.color = curBubbleLevel1.color; // TODO recalculate color to another aczent
-                  // build transition
-                  var xCoordA = bubblePositionsX[curBubbleLevel1.idxX];
-                  var yCoordA = bubblePositionsY[curBubbleLevel1.idxY];
-                  if (debug) { console.log("xCoordA: " + xCoordA + "; yCoordA: " + yCoordA); }
-                  if (curBubbleLevel1.relativeAddCount != 0) {
-                     yCoordA = yCoordA - (curBubbleLevel1.relativeAddCount * radiusBubbles);
-                     if (debug) { console.log("changed yCoordA to: " + yCoordA); }
-                  }
-                  var xCoordB = bubblePositionsX[curBubbleLevel2.idxX];
-                  var yCoordB = bubblePositionsY[curBubbleLevel2.idxY];
-                  if (debug) { console.log("xCoordB: " + xCoordB + "; yCoordB: " + yCoordB); }
-                  if (curBubbleLevel2.relativeAddCount != 0) {
-                     yCoordB = yCoordB - (curBubbleLevel2.relativeAddCount * radiusBubbles);
-                     if (debug) { console.log("changed yCoordB to: " + yCoordB); }
-                  }
-                  var curTrans = new Transition(xCoordA, yCoordA, xCoordB, yCoordB);
-                  tmpTransitionStore[idxTrans++] = curTrans;
-               }
-               if (idRadar3 != -1) {
-                  for (var k = 0; k < bubblesRadar3.length; k++) {
-                     curBubbleLevel3 = bubblesRadar3[k];
-                     if (curBubbleLevel2.name == curBubbleLevel3.name) {
-                        // mark matching bubble with same/similar color
-                        curBubbleLevel3.color = curBubbleLevel2.color; // TODO recalculate color to another aczent
-                        // build transition
-                        var xCoordA = bubblePositionsX[curBubbleLevel2.idxX];
-                        var yCoordA = bubblePositionsY[curBubbleLevel2.idxY];
-                        if (debug) { console.log("xCoordA: " + xCoordA + "; yCoordA: " + yCoordA); }
-                        if (curBubbleLevel2.relativeAddCount != 0) {
-                           yCoordA = yCoordA - (curBubbleLevel2.relativeAddCount * radiusBubbles);
-                           if (debug) { console.log("changed yCoordA to: " + yCoordA); }
-                        }
-                        var xCoordB = bubblePositionsX[curBubbleLevel3.idxX];
-                        var yCoordB = bubblePositionsY[curBubbleLevel3.idxY];
-                        if (debug) { console.log("xCoordB: " + xCoordB + "; yCoordB: " + yCoordB); }
-                        if (curBubbleLevel3.relativeAddCount != 0) {
-                           yCoordB = yCoordB - (curBubbleLevel3.relativeAddCount * radiusBubbles);
-                           if (debug) { console.log("changed yCoordB to: " + yCoordB); }
-                        }
-                        var curTrans = new Transition(xCoordA, yCoordA, xCoordB, yCoordB);
-                        tmpTransitionStore[idxTrans++] = curTrans;
-                     }
-                  }
-               }
-            }
-         }
-         recolorSameElementsInTmpBubbleStore();
+             curBubbleLevel1 = bubblesRadar1[i];
+             for (var j = 0; j < bubblesRadar2.length; j++) {
+                curBubbleLevel2 = bubblesRadar2[j];
+                if (curBubbleLevel1.name == curBubbleLevel2.name) {
+                   buildTransition(curBubbleLevel1, curBubbleLevel2, idxTrans++);
+                }
+                if (idRadar3 != -1) {
+                   for (var k = 0; k < bubblesRadar3.length; k++) {
+                      curBubbleLevel3 = bubblesRadar3[k];
+                      if (curBubbleLevel2.name == curBubbleLevel3.name) {
+                          buildTransition(curBubbleLevel2, curBubbleLevel3, idxTrans++);
+                      }
+                   }
+                }
+             }
+          }         
+         reconfigureSameElementsInTmpBubbleStore();
          //printTmBubbleStore();
          drawComparePage();
        });
+    }
+    
+    function buildTransition(curBubbleLevelA, curBubbleLevelB, idxTrans) {
+	    var xCoordA = bubblePositionsX[curBubbleLevelA.idxX];
+	    var yCoordA = bubblePositionsY[curBubbleLevelA.idxY];
+	    var xCoordB = bubblePositionsX[curBubbleLevelB.idxX];
+	    var yCoordB = bubblePositionsY[curBubbleLevelB.idxY];
+	    if (xCoordA == xCoordB && yCoordA == yCoordB) {
+	    	if (debug) { console.log("skip transition for two bubbles on the same point."); }
+	    } else {
+		    if (debug) { console.log("xCoordA: " + xCoordA + "; yCoordA: " + yCoordA); }
+		    if (curBubbleLevelA.relativeAddCount != 0) {
+		       yCoordA = yCoordA - (curBubbleLevelA.relativeAddCount * radiusBubbles);
+		       if (debug) { console.log("changed yCoordA to: " + yCoordA); }
+		    }
+		    if (debug) { console.log("xCoordB: " + xCoordB + "; yCoordB: " + yCoordB); }
+		    if (curBubbleLevelB.relativeAddCount != 0) {
+		       yCoordB = yCoordB - (curBubbleLevelB.relativeAddCount * radiusBubbles);
+		       if (debug) { console.log("changed yCoordB to: " + yCoordB); }
+		    }
+		    var curTrans = new Transition(xCoordB, yCoordB, xCoordA, yCoordA);
+		    tmpTransitionStore[idxTrans] = curTrans;  
+	    }
     }
     
     function buildBubblesForComparison(radarElements, idRadar, categoryId, bubblesArrayRadar, idxColor) {
@@ -724,7 +712,7 @@
                // at least add to bubble tmp store for later drawing
                putBubbleToTmpBubbleStore(curBubble);
             }
-          }    	
+        }    	
     }
     
     function loadAutocompleteValues(categoryId) {
