@@ -13,6 +13,7 @@
     var axisColor = "black";
     var helpLineColor = "thistle";
     var transitionColor = "gray";
+    var drawArrows = true;
     // calculated vars
     var canvasWidth = -1;
     var canvasHeight = -1;
@@ -42,6 +43,7 @@
        this.categoryid = categoryId;
        this.relativeAddCount = 0;
        this.color = color;
+       this.showText = true;
     } 
     
     function Transition(xA, yA, xB, yB) {
@@ -283,21 +285,38 @@
     
     function drawABubbleText(radarBubble, xCoord, yCoord) {
        if (drawText) {
-         var canvas = document.getElementById("radar");
-         var ctx = canvas.getContext("2d"); 
-         ctx.beginPath();
-         ctx.font = "bold 11px sans-serif";
-         ctx.lineWidth = 0.8;
-         
-         var yCoordText = yCoord + 3 - (radarBubble.relativeAddCount * radiusBubbles);
-//         var gradient=ctx.createLinearGradient(xCoord, yCoordText, xCoord + (radarBubble.name.length * 5), yCoordText);
-//         gradient.addColorStop("0","lightgray");
-//         gradient.addColorStop("1.0","black");
-         ctx.fillStyle = "black";
-         ctx.fillText(radarBubble.name, xCoord, yCoordText); // TODO: calculate middle of text
-         ctx.strokeStyle = "white";
-         ctx.strokeText(radarBubble.name, xCoord, yCoordText);
-         ctx.shadowBlur = 0;
+    	   if (radarBubble.showText) {
+	         var canvas = document.getElementById("radar");
+	         var ctx = canvas.getContext("2d"); 
+	         ctx.beginPath();
+	         
+	         console.log("radius: " + radiusBubbles);
+	         
+	         var txtFont;
+	         switch (radiusBubbles) {
+		         case 1: txtFont = "bold 3px sans-serif"; break;
+		         case 2: txtFont = "bold 3px sans-serif"; break;
+		         case 3: txtFont = "bold 4px sans-serif"; break;
+		         case 4: txtFont = "bold 5px sans-serif"; break;
+		         case 5: txtFont = "bold 7px sans-serif"; break;
+		         case 6: txtFont = "bold 8px sans-serif"; break;
+		         case 7: txtFont = "bold 10px sans-serif"; break;
+		         case 8: txtFont = "bold 11px sans-serif"; break;
+		         case 9: txtFont = "bold 13px sans-serif"; break;
+		         case 10: txtFont = "bold 14px sans-serif"; break;
+		         default: txtFont = "bold 16px sans-serif"; break;
+	         } 
+	         ctx.font = txtFont;
+	         
+	         var yCoordText = yCoord + 3 - (radarBubble.relativeAddCount * radiusBubbles);
+	         var xCoordText = xCoord + radiusBubbles + 3;
+	//         var gradient=ctx.createLinearGradient(xCoord, yCoordText, xCoord + (radarBubble.name.length * 5), yCoordText);
+	//         gradient.addColorStop("0","lightgray");
+	//         gradient.addColorStop("1.0","black");
+	         ctx.fillStyle = "black";
+	         ctx.fillText(radarBubble.name, xCoordText, yCoordText);
+	         ctx.shadowBlur = 0;
+	       }
        }
     } 
     
@@ -308,8 +327,19 @@
        ctx.beginPath();
        ctx.moveTo(transition.xA, transition.yA);
        ctx.lineTo(transition.xB, transition.yB);
+       if (drawArrows) {
+    	   drawArrow(ctx, transition.xA, transition.yA, transition.xB, transition.yB);
+       }
        ctx.lineWidth = 2;
        ctx.strokeStyle = transitionColor;
        ctx.stroke();
     }  
+    
+    function drawArrow(ctx, edgeFrom_x, edgeFrom_y, edgeTo_x, edgeTo_y) {
+	    var headlen = radiusBubbles + 5;   // length of head in pixels
+	    var angle = Math.atan2(edgeTo_y - edgeFrom_y, edgeTo_x - edgeFrom_x);
+	    ctx.lineTo(edgeTo_x-headlen*Math.cos(angle-Math.PI/6),edgeTo_y-headlen*Math.sin(angle-Math.PI/6));
+	    ctx.moveTo(edgeTo_x, edgeTo_y);
+	    ctx.lineTo(edgeTo_x-headlen*Math.cos(angle+Math.PI/6),edgeTo_y-headlen*Math.sin(angle+Math.PI/6));
+    }
       
